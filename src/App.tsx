@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import './App.css'
 
 function App() {
-  const [view, setView] = useState<'register' | 'login'>('register')
+  const [view, setView] = useState<'register' | 'login'>('login')
   const [roleOpen, setRoleOpen] = useState(false)
   const [role, setRole] = useState('Rejestratorka')
   const roleSelectRef = useRef<HTMLDivElement | null>(null)
