@@ -46,7 +46,7 @@
   display: block;
 }
 
-.login-form input {
+.login-form input:not([type='checkbox']) {
   width: 100%;
   min-height: 50px;
   padding: 0 15px;
@@ -61,11 +61,21 @@
     box-shadow 160ms ease;
 }
 
-.login-form input::placeholder {
+.login-form select {
+  width: 100%;
+  min-height: 50px;
+  padding: 0 15px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: #ffffff;
+  color: var(--text-h);
+}
+
+.login-form input:not([type='checkbox'])::placeholder {
   color: #94a3b8;
 }
 
-.login-form input:focus {
+.login-form input:not([type='checkbox']):focus {
   outline: none;
   border-color: rgba(37, 99, 235, 0.35);
   box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
@@ -175,6 +185,12 @@
   transform: translateY(-1px);
 }
 
+.login-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .login-footer {
   margin: 4px 0 0;
   text-align: center;
@@ -203,6 +219,54 @@
 .text-link:hover,
 .text-link:focus-visible {
   text-decoration: underline;
+}
+
+.remember-me-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.remember-me-row input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #2563eb;
+}
+
+.remember-me-row label {
+  margin: 0;
+  color: var(--text-h);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.response-message {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+}
+
+.response-message p {
+  margin: 0;
+}
+
+.response-message p + p {
+  margin-top: 6px;
+}
+
+.response-message.success {
+  background: #ecfdf5;
+  color: #065f46;
+  border-color: #a7f3d0;
+}
+
+.response-message.error {
+  background: #fef2f2;
+  color: #991b1b;
+  border-color: #fecaca;
 }
 
 @media (max-width: 480px) {
