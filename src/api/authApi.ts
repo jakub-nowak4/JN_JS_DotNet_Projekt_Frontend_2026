@@ -1,3 +1,5 @@
+import { api } from './api.ts'
+
 export type LoginRequest = {
   email: string
   password: string
@@ -29,23 +31,42 @@ export type RegisterResult = {
   errors?: string[]
 }
 
-async function postJson<TResponse, TRequest>(url: string, body: TRequest): Promise<TResponse> {
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  })
-
-  const data = (await response.json()) as TResponse
-  return data
+export async function login(request: LoginRequest): Promise<LoginResult> {
+  try {
+    const data = await api.auth.login({
+      email: request.email,
+      password: request.password,
+    })
+    return {
+      succeeded: true,
+      statusCode: 200,
+      message: 'Zalogowano pomyślnie',
+      email: request.email,
+      roles: [data.role],
+    }
+  } catch (err: any) {
+    return {
+      succeeded: false,
+      statusCode: 401,
+      message: err.message || 'Niepoprawne dane logowania',
+    }
+  }
 }
 
-export function login(request: LoginRequest) {
-  return postJson<LoginResult, LoginRequest>('/api/auth/login', request)
+export async function register(request: RegisterRequest): Promise<RegisterResult> {
+  try {
+    const data = await api.auth.register(request)
+    return {
+      succeeded: true,
+      statusCode: 200,
+      message: data.message || 'Zarejestrowano pomyślnie',
+    }
+  } catch (err: any) {
+    return {
+      succeeded: false,
+      statusCode: 400,
+      message: err.message || 'Błąd rejestracji',
+    }
+  }
 }
 
-export function register(request: RegisterRequest) {
-  return postJson<RegisterResult, RegisterRequest>('/api/auth/register', request)
-}

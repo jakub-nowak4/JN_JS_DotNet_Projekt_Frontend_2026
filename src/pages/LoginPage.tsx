@@ -1,11 +1,14 @@
 import { useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
-import { login } from '../api/authApi.ts'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext.tsx'
+import { Alert } from '../components/Alert.tsx'
 
-function LoginPage() {
+export default function LoginPage() {
+  const { login } = useAuth()
+  const navigate = useNavigate()
+  
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -15,72 +18,69 @@ function LoginPage() {
     setIsSubmitting(true)
 
     try {
-      const loginResult = await login({ email, password, rememberMe })
-      if (!loginResult.succeeded) {
-        setError(loginResult.message)
-      }
-    } catch (submitError) {
-      const message = submitError instanceof Error ? submitError.message : 'Nieznany blad'
-      setError(`Nie udalo sie wykonac logowania: ${message}`)
+      await login(email, password)
+      navigate('/dashboard')
+    } catch (submitError: any) {
+      setError(submitError.message || 'Błąd połączenia z serwerem.')
     } finally {
       setIsSubmitting(false)
     }
   }
 
   return (
-    <main className="login-page">
+    <main className="login-page animate-fade">
       <section className="login-card" aria-labelledby="login-title">
-        <h1 id="login-title">MedicalClinc</h1>
-        <p className="login-subtitle">Zaloguj sie, aby wejsc do panelu systemu.</p>
+        <h1 id="login-title" style={{ color: 'var(--text-primary)' }}>MedicalClinic</h1>
+        <p className="login-subtitle" style={{ color: 'var(--text-secondary)' }}>
+          Wprowadź swoje dane, aby uzyskać dostęp do panelu medycznego.
+        </p>
+
+        <Alert message={error} type="error" onClose={() => setError(null)} />
 
         <form className="login-form" onSubmit={handleSubmit}>
-          <label>
-            E-mail
+          <label style={{ color: 'var(--text-primary)' }}>
+            Adres E-mail
             <input
               type="email"
               name="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              placeholder="np. kontakt@medicalclinc.pl"
+              placeholder="np. lekarz@medicalclinic.pl"
               required
+              disabled={isSubmitting}
             />
           </label>
 
-          <label>
-            Haslo
+          <label style={{ color: 'var(--text-primary)' }}>
+            Hasło
             <input
               type="password"
               name="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="Wpisz haslo"
+              placeholder="••••••••"
               required
+              disabled={isSubmitting}
             />
           </label>
 
-          <div className="remember-me-row">
-            <input
-              type="checkbox"
-              id="rememberMe"
-              name="rememberMe"
-              checked={rememberMe}
-              onChange={(event) => setRememberMe(event.target.checked)}
-            />
-            <label htmlFor="rememberMe">Zapamietaj mnie</label>
-          </div>
-
           <button type="submit" className="login-button" disabled={isSubmitting}>
-            {isSubmitting ? 'Logowanie...' : 'Zaloguj sie'}
+            {isSubmitting ? (
+              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                <span className="spinner" style={{ width: '16px', height: '16px', border: '2px solid #ffffff', borderTopColor: 'transparent' }}></span>
+                Logowanie...
+              </span>
+            ) : (
+              'Zaloguj się'
+            )}
           </button>
         </form>
 
-        {error ? <p className="response-message error">{error}</p> : null}
-        <p className="login-footer">
-          Nie masz konta? <Link to="/register">Stworz konto</Link>
+        <p className="login-footer" style={{ color: 'var(--text-secondary)' }}>
+          Nie posiadasz jeszcze konta?{' '}
+          <Link to="/register" style={{ color: 'var(--primary)' }}>Utwórz konto personelu</Link>
         </p>
       </section>
     </main>
   )
 }
-
-export default LoginPage
