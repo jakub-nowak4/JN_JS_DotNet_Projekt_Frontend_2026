@@ -1,5 +1,17 @@
-import { useState, useEffect } from 'react'
-import { api, type VisitDto, type PatientDetailDto, type MedicalRecordDto, type MedicalDocumentDto } from '../api/api.ts'
+import React, { useState, useEffect } from 'react'
+import {
+  api,
+  type VisitDto,
+  type PatientDetailDto,
+  type MedicalRecordDto,
+  type MedicalDocumentDto,
+  type ClinicalNoteDto,
+  type PrescriptionDto,
+  type ProcedurePerformedDto,
+  type MedicationListDto,
+  type ProcedureDto,
+  CLINICAL_NOTE_TYPE_LABELS
+} from '../api/api.ts'
 import { Alert } from '../components/Alert.tsx'
 import { Modal } from '../components/Modal.tsx'
 
@@ -12,6 +24,15 @@ export const DoctorPanel = () => {
   const [patient, setPatient] = useState<PatientDetailDto | null>(null)
   const [record, setRecord] = useState<MedicalRecordDto | null>(null)
   const [documents, setDocuments] = useState<MedicalDocumentDto[]>([])
+
+  // Visit details (Notes, Prescriptions, Performed Procedures)
+  const [notes, setNotes] = useState<ClinicalNoteDto[]>([])
+  const [prescriptions, setPrescriptions] = useState<PrescriptionDto[]>([])
+  const [performedProcedures, setPerformedProcedures] = useState<ProcedurePerformedDto[]>([])
+
+  // Catalogs
+  const [medicationsCatalog, setMedicationsCatalog] = useState<MedicationListDto[]>([])
+  const [proceduresCatalog, setProceduresCatalog] = useState<ProcedureDto[]>([])
 
   // Modal forms state
   const [showRecordModal, setShowRecordModal] = useState(false)
@@ -26,17 +47,35 @@ export const DoctorPanel = () => {
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploadDesc, setUploadDesc] = useState('')
 
+  // New items forms state
+  const [newNote, setNewNote] = useState({
+    content: '',
+    noteType: '0' // default to Interview
+  })
+
+  const [newPrescription, setNewPrescription] = useState({
+    medicationId: '',
+    dosage: '',
+    quantity: '1'
+  })
+
+  const [newProcedure, setNewProcedure] = useState({
+    procedureId: '',
+    description: '',
+    serviceCost: ''
+  })
+
   // Notifications
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [actionLoading, setActionLoading] = useState(false)
 
   const loadTodayVisits = async () => {
     setLoading(true)
     setError(null)
     try {
       const data = await api.visits.getToday()
-      // Doctor's visits are filtered by backend.
       setVisits(data)
     } catch (err: any) {
       setError(`Nie udało się załadować planu wizyt: ${err.message}`)
@@ -45,8 +84,21 @@ export const DoctorPanel = () => {
     }
   }
 
+  const loadCatalogs = async () => {
+    try {
+      const meds = await api.medications.getAll()
+      setMedicationsCatalog(meds)
+
+      const procs = await api.procedures.getAll(true) // Load active procedures
+      setProceduresCatalog(procs)
+    } catch (err: any) {
+      console.error('Failed to load catalog lists', err)
+    }
+  }
+
   useEffect(() => {
     loadTodayVisits()
+    loadCatalogs()
   }, [])
 
   const handleSelectVisit = async (vst: VisitDto) => {
@@ -56,9 +108,11 @@ export const DoctorPanel = () => {
     setPatient(null)
     setRecord(null)
     setDocuments([])
+    setNotes([])
+    setPrescriptions([])
+    setPerformedProcedures([])
     
     try {
-      // Fetch details of this patient
       const pDetails = await api.patients.getById(vst.patientId)
       setPatient(pDetails)
 
@@ -82,6 +136,18 @@ export const DoctorPanel = () => {
 
       const docs = await api.documents.getAll(vst.patientId)
       setDocuments(docs)
+
+      // Load visit notes
+      const notesData = await api.notes.getAll(vst.id)
+      setNotes(notesData)
+
+      // Load prescriptions
+      const rxData = await api.prescriptions.getAll(vst.id)
+      setPrescriptions(rxData)
+
+      // Load performed procedures
+      const perfProcs = await api.visits.proceduresPerformed.getAll(vst.id)
+      setPerformedProcedures(perfProcs)
     } catch (err: any) {
       setError(`Nie udało się wczytać kartoteki pacjenta: ${err.message}`)
     } finally {
@@ -89,6 +155,63 @@ export const DoctorPanel = () => {
     }
   }
 
+  const reloadSelectedVisitDetails = async (visitId: number) => {
+    try {
+      const notesData = await api.notes.getAll(visitId)
+      setNotes(notesData)
+
+      const rxData = await api.prescriptions.getAll(visitId)
+      setPrescriptions(rxData)
+
+      const perfProcs = await api.visits.proceduresPerformed.getAll(visitId)
+      setPerformedProcedures(perfProcs)
+    } catch (err) {
+      console.error('Failed to reload details', err)
+    }
+  }
+
+  // Visit status workflow
+  const handleStartVisit = async () => {
+    if (!selectedVisit) return
+    setActionLoading(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      await api.visits.changeStatus(selectedVisit.id, 1) // InProgress
+      setSuccess('Wizyta została rozpoczęta.')
+      // Refresh
+      const updatedList = await api.visits.getToday()
+      setVisits(updatedList)
+      const updatedVisit = updatedList.find(v => v.id === selectedVisit.id)
+      if (updatedVisit) setSelectedVisit(updatedVisit)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleCompleteVisit = async () => {
+    if (!selectedVisit) return
+    setActionLoading(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      await api.visits.changeStatus(selectedVisit.id, 2) // Completed
+      setSuccess('Wizyta została zakończona pomyślnie.')
+      // Refresh
+      const updatedList = await api.visits.getToday()
+      setVisits(updatedList)
+      const updatedVisit = updatedList.find(v => v.id === selectedVisit.id)
+      if (updatedVisit) setSelectedVisit(updatedVisit)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  // Clinical Record Save
   const handleSaveRecord = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedVisit) return
@@ -110,6 +233,7 @@ export const DoctorPanel = () => {
     }
   }
 
+  // Upload results
   const handleUploadDoc = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedVisit || !uploadFile) return
@@ -138,6 +262,151 @@ export const DoctorPanel = () => {
       // Reload docs
       const docs = await api.documents.getAll(selectedVisit.patientId)
       setDocuments(docs)
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  // Clinical Notes CRUD
+  const handleAddNote = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedVisit) return
+    setError(null)
+    setSuccess(null)
+    try {
+      await api.notes.create(selectedVisit.id, {
+        content: newNote.content,
+        noteType: parseInt(newNote.noteType)
+      })
+      setSuccess('Dodano notatkę kliniczną.')
+      setNewNote({ content: '', noteType: '0' })
+      reloadSelectedVisitDetails(selectedVisit.id)
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const handleDeleteNote = async (noteId: number) => {
+    if (!selectedVisit || !confirm('Czy na pewno chcesz usunąć tę notatkę?')) return
+    setError(null)
+    setSuccess(null)
+    try {
+      await api.notes.delete(selectedVisit.id, noteId)
+      setSuccess('Usunięto notatkę.')
+      reloadSelectedVisitDetails(selectedVisit.id)
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  // Prescriptions CRUD
+  const handleAddPrescription = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedVisit || !newPrescription.medicationId) return
+    setError(null)
+    setSuccess(null)
+    try {
+      await api.prescriptions.create(selectedVisit.id, {
+        medicationId: parseInt(newPrescription.medicationId),
+        dosage: newPrescription.dosage,
+        quantity: parseInt(newPrescription.quantity) || 1
+      })
+      setSuccess('Przepisano lek.')
+      setNewPrescription({ medicationId: '', dosage: '', quantity: '1' })
+      reloadSelectedVisitDetails(selectedVisit.id)
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const handleDeletePrescription = async (rxId: number) => {
+    if (!selectedVisit || !confirm('Czy na pewno chcesz wycofać ten lek z recepty?')) return
+    setError(null)
+    setSuccess(null)
+    try {
+      await api.prescriptions.delete(selectedVisit.id, rxId)
+      setSuccess('Wycofano lek z recepty.')
+      reloadSelectedVisitDetails(selectedVisit.id)
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  // Performed Procedures CRUD
+  const handleAddProcedure = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedVisit || !newProcedure.procedureId) return
+    setError(null)
+    setSuccess(null)
+    try {
+      await api.visits.proceduresPerformed.create(selectedVisit.id, {
+        procedureId: parseInt(newProcedure.procedureId),
+        description: newProcedure.description,
+        serviceCost: newProcedure.serviceCost ? parseFloat(newProcedure.serviceCost) : undefined
+      })
+      setSuccess('Zarejestrowano wykonaną procedurę medyczną.')
+      setNewProcedure({ procedureId: '', description: '', serviceCost: '' })
+      reloadSelectedVisitDetails(selectedVisit.id)
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const handleDeleteProcedurePerformed = async (ppId: number) => {
+    if (!selectedVisit || !confirm('Czy na pewno chcesz usunąć tę procedurę?')) return
+    setError(null)
+    setSuccess(null)
+    try {
+      await api.visits.proceduresPerformed.delete(selectedVisit.id, ppId)
+      setSuccess('Wycofano procedurę z wizyty.')
+      reloadSelectedVisitDetails(selectedVisit.id)
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const handleProcedureChange = (procedureIdStr: string) => {
+    const id = parseInt(procedureIdStr)
+    const proc = proceduresCatalog.find(p => p.id === id)
+    if (proc) {
+      setNewProcedure({
+        procedureId: procedureIdStr,
+        description: proc.description || '',
+        serviceCost: proc.defaultCost.toString()
+      })
+    } else {
+      setNewProcedure({ procedureId: '', description: '', serviceCost: '' })
+    }
+  }
+
+  // QuestPDF generating downloads
+  const handleDownloadVisitCard = async () => {
+    if (!selectedVisit) return
+    setError(null)
+    try {
+      const url = await api.visits.getPdfBlobUrl(selectedVisit.id)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `karta-wizyty-${selectedVisit.id}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const handleDownloadPrescriptionPdf = async () => {
+    if (!selectedVisit) return
+    setError(null)
+    try {
+      const url = await api.visits.getPrescriptionPdfBlobUrl(selectedVisit.id)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `recepta-${selectedVisit.id}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
     } catch (err: any) {
       setError(err.message)
     }
@@ -192,7 +461,32 @@ export const DoctorPanel = () => {
 
         {selectedVisit && patient ? (
           <div className="detail-card-full" style={{ border: '1px solid var(--surface-border)', background: 'var(--surface)' }}>
-            <span className="card-tag">Konsultacja Lekarska</span>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <span className="card-tag">Konsultacja Lekarska</span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {selectedVisit.status === 'Planned' && (
+                  <button className="btn-primary" style={{ height: '34px', fontSize: '0.8rem', padding: '0 12px' }} onClick={handleStartVisit} disabled={actionLoading}>
+                    Rozpocznij wizytę
+                  </button>
+                )}
+                {selectedVisit.status === 'InProgress' && (
+                  <button className="btn-primary" style={{ height: '34px', fontSize: '0.8rem', padding: '0 12px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', boxShadow: '0 4px 14px rgba(16, 185, 129, 0.25)' }} onClick={handleCompleteVisit} disabled={actionLoading}>
+                    Zakończ wizytę
+                  </button>
+                )}
+                {(selectedVisit.status === 'InProgress' || selectedVisit.status === 'Completed') && (
+                  <>
+                    <button className="btn-secondary small" style={{ border: '1px solid var(--primary)', color: 'var(--primary)' }} onClick={handleDownloadVisitCard}>
+                      Karta PDF
+                    </button>
+                    <button className="btn-secondary small" style={{ border: '1px solid var(--warning)', color: 'var(--warning)' }} onClick={handleDownloadPrescriptionPdf}>
+                      Recepta PDF
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
             
             <div className="visit-detail-patient" style={{ borderBottom: '1px solid var(--surface-border)', paddingBottom: '15px' }}>
               <div className="avatar-large">
@@ -247,6 +541,219 @@ export const DoctorPanel = () => {
                 </div>
               )}
             </div>
+
+            {/* Visit Details Flow (Clinical Notes, Medications, Performed Procedures) */}
+            {(selectedVisit.status === 'InProgress' || selectedVisit.status === 'Completed') && (
+              <>
+                {/* 1. Clinical Notes Management */}
+                <div className="sub-section" style={{ borderTop: '1px solid var(--surface-border)', paddingTop: '20px' }}>
+                  <h4 style={{ color: 'var(--text-primary)', fontWeight: '700', marginBottom: '10px' }}>Przebieg i Notatki kliniczne</h4>
+                  
+                  {selectedVisit.status === 'InProgress' && (
+                    <form onSubmit={handleAddNote} className="mini-upload-form" style={{ background: 'var(--background)', display: 'grid', gridTemplateColumns: '1fr', gap: '10px', padding: '15px' }}>
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <select
+                          value={newNote.noteType}
+                          onChange={(e) => setNewNote({ ...newNote, noteType: e.target.value })}
+                          className="filter-select"
+                          style={{ flexShrink: 0, width: '130px', background: 'var(--surface)', border: '1px solid var(--surface-border)', borderRadius: '8px', fontSize: '0.85rem' }}
+                        >
+                          <option value="0">Wywiad</option>
+                          <option value="1">Rozpoznanie</option>
+                          <option value="2">Zalecenia</option>
+                        </select>
+                        <textarea
+                          placeholder="Treść notatki lekarskiej..."
+                          value={newNote.content}
+                          onChange={(e) => setNewNote({ ...newNote, content: e.target.value })}
+                          required
+                          style={{ flexGrow: 1, height: '40px', background: 'var(--surface)', border: '1px solid var(--surface-border)', borderRadius: '8px', padding: '8px 12px', fontSize: '0.85rem', color: 'var(--text-primary)' }}
+                        />
+                      </div>
+                      <button type="submit" className="btn-primary" style={{ height: '34px', fontSize: '0.85rem', justifySelf: 'end' }}>
+                        Dodaj notatkę
+                      </button>
+                    </form>
+                  )}
+
+                  {notes.length === 0 ? (
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '10px 0' }}>Brak notatek z przebiegu wizyty.</p>
+                  ) : (
+                    <div className="documents-list" style={{ marginTop: '10px' }}>
+                      {notes.map(n => (
+                        <div key={n.id} className="document-row" style={{ background: 'var(--surface)', border: '1px solid var(--surface-border)', padding: '12px' }}>
+                          <div className="doc-meta" style={{ flexGrow: 1 }}>
+                            <div>
+                              <span className={`status-pill ${n.noteType === 'Interview' ? 'pending' : n.noteType === 'Diagnosis' ? 'approved' : 'completed'}`} style={{ fontSize: '0.75rem', marginRight: '8px' }}>
+                                {CLINICAL_NOTE_TYPE_LABELS[n.noteType]}
+                              </span>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{n.authorFullName}</span>
+                              <p style={{ color: 'var(--text-primary)', marginTop: '6px', fontSize: '0.9rem', whiteSpace: 'pre-wrap' }}>{n.content}</p>
+                            </div>
+                          </div>
+                          {selectedVisit.status === 'InProgress' && (
+                            <button className="btn-delete-text" onClick={() => handleDeleteNote(n.id)}>Usuń</button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Prescriptions */}
+                <div className="sub-section" style={{ borderTop: '1px solid var(--surface-border)', paddingTop: '20px' }}>
+                  <h4 style={{ color: 'var(--text-primary)', fontWeight: '700', marginBottom: '10px' }}>Przepisane Leki (Recepta)</h4>
+                  
+                  {selectedVisit.status === 'InProgress' && (
+                    <form onSubmit={handleAddPrescription} className="mini-upload-form" style={{ background: 'var(--background)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '10px', padding: '15px' }}>
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        <select
+                          required
+                          value={newPrescription.medicationId}
+                          onChange={(e) => setNewPrescription({ ...newPrescription, medicationId: e.target.value })}
+                          className="filter-select"
+                          style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--surface-border)', borderRadius: '8px', fontSize: '0.85rem', height: '36px' }}
+                        >
+                          <option value="">Wybierz lek z katalogu...</option>
+                          {medicationsCatalog.map(m => (
+                            <option key={m.id} value={m.id}>{m.name} ({m.unitPrice.toFixed(2)} zł)</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <input
+                          type="text"
+                          placeholder="Dawkowanie (np. 1x rano)"
+                          required
+                          value={newPrescription.dosage}
+                          onChange={(e) => setNewPrescription({ ...newPrescription, dosage: e.target.value })}
+                          className="file-description-input"
+                          style={{ width: '100%', height: '36px', background: 'var(--surface)', border: '1px solid var(--surface-border)', borderRadius: '8px', padding: '0 10px', fontSize: '0.85rem' }}
+                        />
+                      </div>
+                      <div>
+                        <input
+                          type="number"
+                          placeholder="Ilość"
+                          required
+                          min="1"
+                          max="50"
+                          value={newPrescription.quantity}
+                          onChange={(e) => setNewPrescription({ ...newPrescription, quantity: e.target.value })}
+                          style={{ width: '100%', height: '36px', background: 'var(--surface)', border: '1px solid var(--surface-border)', borderRadius: '8px', padding: '0 10px', fontSize: '0.85rem', color: 'var(--text-primary)' }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-end' }}>
+                        <button type="submit" className="btn-primary" style={{ height: '36px', fontSize: '0.85rem', width: '100%' }}>
+                          Przepisz
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {prescriptions.length === 0 ? (
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '10px 0' }}>Brak przepisanych leków.</p>
+                  ) : (
+                    <div className="documents-list" style={{ marginTop: '10px' }}>
+                      {prescriptions.map(rx => (
+                        <div key={rx.id} className="document-row" style={{ background: 'var(--surface)', border: '1px solid var(--surface-border)', padding: '12px' }}>
+                          <div className="doc-meta" style={{ flexGrow: 1 }}>
+                            <div>
+                              <span style={{ color: 'var(--text-primary)', fontWeight: 'bold' }}>{rx.medicationName}</span>
+                              <span style={{ margin: '0 8px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                                Dawkowanie: {rx.dosage} · Ilość: {rx.quantity} szt.
+                              </span>
+                              <span style={{ color: 'var(--success)', fontWeight: 'bold', fontSize: '0.85rem' }}>
+                                {rx.totalCost.toFixed(2)} zł
+                              </span>
+                            </div>
+                          </div>
+                          {selectedVisit.status === 'InProgress' && (
+                            <button className="btn-delete-text" onClick={() => handleDeletePrescription(rx.id)}>Wycofaj</button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. Performed Procedures */}
+                <div className="sub-section" style={{ borderTop: '1px solid var(--surface-border)', paddingTop: '20px' }}>
+                  <h4 style={{ color: 'var(--text-primary)', fontWeight: '700', marginBottom: '10px' }}>Wykonane zabiegi / procedury</h4>
+                  
+                  {selectedVisit.status === 'InProgress' && (
+                    <form onSubmit={handleAddProcedure} className="mini-upload-form" style={{ background: 'var(--background)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '10px', padding: '15px' }}>
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        <select
+                          required
+                          value={newProcedure.procedureId}
+                          onChange={(e) => handleProcedureChange(e.target.value)}
+                          className="filter-select"
+                          style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--surface-border)', borderRadius: '8px', fontSize: '0.85rem', height: '36px' }}
+                        >
+                          <option value="">Wybierz zabieg z katalogu...</option>
+                          {proceduresCatalog.map(p => (
+                            <option key={p.id} value={p.id}>{p.name} ({p.defaultCost.toFixed(2)} zł)</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div style={{ gridColumn: 'span 2' }}>
+                        <input
+                          type="text"
+                          placeholder="Opis wykonania / uwagi"
+                          required
+                          value={newProcedure.description}
+                          onChange={(e) => setNewProcedure({ ...newProcedure, description: e.target.value })}
+                          className="file-description-input"
+                          style={{ width: '100%', height: '36px', background: 'var(--surface)', border: '1px solid var(--surface-border)', borderRadius: '8px', padding: '0 10px', fontSize: '0.85rem' }}
+                        />
+                      </div>
+                      <div>
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="Koszt usługi (zł)"
+                          required
+                          value={newProcedure.serviceCost}
+                          onChange={(e) => setNewProcedure({ ...newProcedure, serviceCost: e.target.value })}
+                          style={{ width: '100%', height: '36px', background: 'var(--surface)', border: '1px solid var(--surface-border)', borderRadius: '8px', padding: '0 10px', fontSize: '0.85rem', color: 'var(--text-primary)' }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-end' }}>
+                        <button type="submit" className="btn-primary" style={{ height: '36px', fontSize: '0.85rem', width: '100%' }}>
+                          Zarejestruj
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {performedProcedures.length === 0 ? (
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '10px 0' }}>Brak wykonanych zabiegów podczas tej wizyty.</p>
+                  ) : (
+                    <div className="documents-list" style={{ marginTop: '10px' }}>
+                      {performedProcedures.map(pp => (
+                        <div key={pp.id} className="document-row" style={{ background: 'var(--surface)', border: '1px solid var(--surface-border)', padding: '12px' }}>
+                          <div className="doc-meta" style={{ flexGrow: 1 }}>
+                            <div>
+                              <span style={{ color: 'var(--text-primary)', fontWeight: 'bold' }}>{pp.procedureName}</span>
+                              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                                Uwagi: {pp.description}
+                              </p>
+                              <span style={{ color: 'var(--primary)', fontWeight: 'bold', fontSize: '0.85rem' }}>
+                                Koszt: {pp.serviceCost.toFixed(2)} zł
+                              </span>
+                            </div>
+                          </div>
+                          {selectedVisit.status === 'InProgress' && (
+                            <button className="btn-delete-text" onClick={() => handleDeleteProcedurePerformed(pp.id)}>Usuń</button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
 
             {/* Medical Documents */}
             <div className="sub-section" style={{ borderTop: '1px solid var(--surface-border)' }}>

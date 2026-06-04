@@ -64,6 +64,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
             <path d="M9.5 9.5 13 13" />
           </svg>
         )
+      case 'procedures':
+        return (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+          </svg>
+        )
+      case 'reports':
+        return (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="20" x2="18" y2="10" />
+            <line x1="12" y1="20" x2="12" y2="4" />
+            <line x1="6" y1="20" x2="6" y2="14" />
+          </svg>
+        )
       default:
         return null
     }
@@ -113,7 +127,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
             </button>
           )}
 
-          {(user.role === 'Rejestratorka' || user.role === 'Lekarz') && (
+          {(user.role === 'Rejestratorka' || user.role === 'Lekarz' || user.role === 'Admin') && (
             <button
               className={`menu-item ${activeTab === 'medications' ? 'active' : ''}`}
               onClick={() => setActiveTab('medications')}
@@ -122,6 +136,30 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
                 {getIcon('medications')}
               </span>
               Katalog leków
+            </button>
+          )}
+
+          {(user.role === 'Rejestratorka' || user.role === 'Lekarz' || user.role === 'Admin') && (
+            <button
+              className={`menu-item ${activeTab === 'procedures' ? 'active' : ''}`}
+              onClick={() => setActiveTab('procedures')}
+            >
+              <span className="menu-icon-wrapper" style={{ marginRight: '12px', display: 'flex' }}>
+                {getIcon('procedures')}
+              </span>
+              Procedury medyczne
+            </button>
+          )}
+
+          {user.role === 'Admin' && (
+            <button
+              className={`menu-item ${activeTab === 'reports' ? 'active' : ''}`}
+              onClick={() => setActiveTab('reports')}
+            >
+              <span className="menu-icon-wrapper" style={{ marginRight: '12px', display: 'flex' }}>
+                {getIcon('reports')}
+              </span>
+              Raporty finansowe
             </button>
           )}
         </nav>

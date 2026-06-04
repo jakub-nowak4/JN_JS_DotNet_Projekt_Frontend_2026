@@ -43,7 +43,7 @@ export const ReceptionPanel: React.FC = () => {
         const users = await api.admin.getAllUsers()
         const docs = users.filter(u => u.role === 'Lekarz').map(u => ({ id: u.id, fullName: u.fullName }))
         setDoctorsList(docs)
-      } catch (err) {
+      } catch {
         // Fallback: extract doctors from visits
         const tempFilter = { page: 1, pageSize: 200 }
         const allVsts = await api.visits.getAll(tempFilter)
@@ -99,6 +99,7 @@ export const ReceptionPanel: React.FC = () => {
 
   useEffect(() => {
     loadVisits()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scheduleDate, scheduleStatus, scheduleDoctorId])
 
   const handleCreateVisit = async (e: React.FormEvent) => {
@@ -135,6 +136,36 @@ export const ReceptionPanel: React.FC = () => {
       setSuccess('Wizyta została pomyślnie anulowana.')
       setSelectedVisit(null)
       loadVisits()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const handleDownloadVisitCard = async (visitId: number) => {
+    setError(null)
+    try {
+      const url = await api.visits.getPdfBlobUrl(visitId)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `karta-wizyty-${visitId}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const handleDownloadPrescriptionPdf = async (visitId: number) => {
+    setError(null)
+    try {
+      const url = await api.visits.getPrescriptionPdfBlobUrl(visitId)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `recepta-${visitId}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
     } catch (err: any) {
       setError(err.message)
     }
@@ -320,6 +351,16 @@ export const ReceptionPanel: React.FC = () => {
                 <button className="btn-danger w-100" onClick={() => handleCancelVisit(selectedVisit.id)}>
                   Anuluj tę wizytę
                 </button>
+              )}
+              {(selectedVisit.status === 'InProgress' || selectedVisit.status === 'Completed') && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <button className="btn-secondary w-100" style={{ border: '1px solid var(--primary)', color: 'var(--primary)' }} onClick={() => handleDownloadVisitCard(selectedVisit.id)}>
+                    Pobierz Kartę PDF
+                  </button>
+                  <button className="btn-secondary w-100" style={{ border: '1px solid var(--warning)', color: 'var(--warning)' }} onClick={() => handleDownloadPrescriptionPdf(selectedVisit.id)}>
+                    Pobierz Receptę PDF
+                  </button>
+                </div>
               )}
             </div>
           </div>

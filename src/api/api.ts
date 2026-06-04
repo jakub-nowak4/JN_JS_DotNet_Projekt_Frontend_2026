@@ -162,6 +162,119 @@ export type PagedVisitsResponse = {
   pageSize: number
 }
 
+export type ClinicalNoteType = 'Interview' | 'Diagnosis' | 'Recommendations'
+
+export const CLINICAL_NOTE_TYPE_LABELS: Record<ClinicalNoteType, string> = {
+  Interview: 'Wywiad',
+  Diagnosis: 'Rozpoznanie',
+  Recommendations: 'Zalecenia',
+}
+
+export type ClinicalNoteDto = {
+  id: number
+  visitId: number
+  authorId: string
+  authorFullName: string
+  content: string
+  noteType: ClinicalNoteType
+  timestamp: string
+}
+
+export type CreateClinicalNoteDto = {
+  content: string
+  noteType: number
+}
+
+export type UpdateClinicalNoteDto = {
+  content: string
+  noteType: number
+}
+
+export type PrescriptionDto = {
+  id: number
+  visitId: number
+  medicationId: number
+  medicationName: string
+  unitPrice: number
+  dosage: string
+  quantity: number
+  totalCost: number
+}
+
+export type CreatePrescriptionDto = {
+  medicationId: number
+  dosage: string
+  quantity: number
+}
+
+export type ProcedureDto = {
+  id: number
+  name: string
+  description: string
+  defaultCost: number
+  isActive: boolean
+  createdAt: string
+}
+
+export type CreateProcedureDto = {
+  name: string
+  description: string
+  defaultCost: number
+}
+
+export type UpdateProcedureDto = {
+  name: string
+  description: string
+  defaultCost: number
+  isActive: boolean
+}
+
+export type ProcedurePerformedDto = {
+  id: number
+  visitId: number
+  procedureId: number
+  procedureName: string
+  description: string
+  serviceCost: number
+}
+
+export type CreateProcedurePerformedDto = {
+  procedureId: number
+  description: string
+  serviceCost?: number
+}
+
+export type CostReportItemDto = {
+  visitId: number
+  scheduledAt: string
+  patientFullName: string
+  doctorFullName: string
+  status: string
+  proceduresCost: number
+  medicationsCost: number
+  totalCost: number
+  proceduresCount: number
+  medicationsCount: number
+}
+
+export type CostReportDto = {
+  generatedAt: string
+  filterDescription: string
+  totalVisits: number
+  totalProceduresCost: number
+  totalMedicationsCost: number
+  grandTotal: number
+  items: CostReportItemDto[]
+}
+
+export type CostReportFilterDto = {
+  patientId?: number
+  doctorId?: string
+  dateFrom?: string
+  dateTo?: string
+}
+
+
 // Helpers
 function getHeaders(isMultipart = false): HeadersInit {
   const token = localStorage.getItem('token')
@@ -440,6 +553,181 @@ export const api = {
         headers: getHeaders(),
       })
       return handleResponse<{ message: string }>(res)
+    },
+    changeStatus: async (id: number, newStatus: number): Promise<{ message: string }> => {
+      const res = await fetch(`${BASE_URL}/api/visits/${id}/status`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify({ newStatus }),
+      })
+      return handleResponse<{ message: string }>(res)
+    },
+    getPdfBlobUrl: async (id: number): Promise<string> => {
+      const res = await fetch(`${BASE_URL}/api/visits/${id}/pdf`, {
+        headers: getHeaders(),
+      })
+      if (!res.ok) throw new Error('Błąd pobierania PDF karty wizyty')
+      const blob = await res.blob()
+      return URL.createObjectURL(blob)
+    },
+    getPrescriptionPdfBlobUrl: async (id: number): Promise<string> => {
+      const res = await fetch(`${BASE_URL}/api/visits/${id}/prescription-pdf`, {
+        headers: getHeaders(),
+      })
+      if (!res.ok) throw new Error('Błąd pobierania PDF recepty')
+      const blob = await res.blob()
+      return URL.createObjectURL(blob)
+    },
+    proceduresPerformed: {
+      getAll: async (visitId: number): Promise<ProcedurePerformedDto[]> => {
+        const res = await fetch(`${BASE_URL}/api/visits/${visitId}/procedures`, {
+          headers: getHeaders(),
+        })
+        return handleResponse<ProcedurePerformedDto[]>(res)
+      },
+      create: async (visitId: number, dto: CreateProcedurePerformedDto): Promise<ProcedurePerformedDto> => {
+        const res = await fetch(`${BASE_URL}/api/visits/${visitId}/procedures`, {
+          method: 'POST',
+          headers: getHeaders(),
+          body: JSON.stringify(dto),
+        })
+        return handleResponse<ProcedurePerformedDto>(res)
+      },
+      delete: async (visitId: number, procedurePerformedId: number): Promise<void> => {
+        const res = await fetch(`${BASE_URL}/api/visits/${visitId}/procedures/${procedurePerformedId}`, {
+          method: 'DELETE',
+          headers: getHeaders(),
+        })
+        return handleResponse<void>(res)
+      },
+    },
+  },
+
+  // Clinical Notes
+  notes: {
+    getAll: async (visitId: number): Promise<ClinicalNoteDto[]> => {
+      const res = await fetch(`${BASE_URL}/api/visits/${visitId}/notes`, {
+        headers: getHeaders(),
+      })
+      return handleResponse<ClinicalNoteDto[]>(res)
+    },
+    create: async (visitId: number, dto: CreateClinicalNoteDto): Promise<ClinicalNoteDto> => {
+      const res = await fetch(`${BASE_URL}/api/visits/${visitId}/notes`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(dto),
+      })
+      return handleResponse<ClinicalNoteDto>(res)
+    },
+    update: async (visitId: number, noteId: number, dto: UpdateClinicalNoteDto): Promise<ClinicalNoteDto> => {
+      const res = await fetch(`${BASE_URL}/api/visits/${visitId}/notes/${noteId}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(dto),
+      })
+      return handleResponse<ClinicalNoteDto>(res)
+    },
+    delete: async (visitId: number, noteId: number): Promise<void> => {
+      const res = await fetch(`${BASE_URL}/api/visits/${visitId}/notes/${noteId}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      })
+      return handleResponse<void>(res)
+    },
+  },
+
+  // Prescriptions
+  prescriptions: {
+    getAll: async (visitId: number): Promise<PrescriptionDto[]> => {
+      const res = await fetch(`${BASE_URL}/api/visits/${visitId}/prescriptions`, {
+        headers: getHeaders(),
+      })
+      return handleResponse<PrescriptionDto[]>(res)
+    },
+    create: async (visitId: number, dto: CreatePrescriptionDto): Promise<PrescriptionDto> => {
+      const res = await fetch(`${BASE_URL}/api/visits/${visitId}/prescriptions`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(dto),
+      })
+      return handleResponse<PrescriptionDto>(res)
+    },
+    delete: async (visitId: number, prescriptionId: number): Promise<void> => {
+      const res = await fetch(`${BASE_URL}/api/visits/${visitId}/prescriptions/${prescriptionId}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      })
+      return handleResponse<void>(res)
+    },
+  },
+
+  // Procedures Catalog
+  procedures: {
+    getAll: async (onlyActive?: boolean): Promise<ProcedureDto[]> => {
+      const url = onlyActive !== undefined ? `${BASE_URL}/api/procedures?onlyActive=${onlyActive}` : `${BASE_URL}/api/procedures`
+      const res = await fetch(url, {
+        headers: getHeaders(),
+      })
+      return handleResponse<ProcedureDto[]>(res)
+    },
+    getById: async (id: number): Promise<ProcedureDto> => {
+      const res = await fetch(`${BASE_URL}/api/procedures/${id}`, {
+        headers: getHeaders(),
+      })
+      return handleResponse<ProcedureDto>(res)
+    },
+    create: async (dto: CreateProcedureDto): Promise<ProcedureDto> => {
+      const res = await fetch(`${BASE_URL}/api/procedures`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(dto),
+      })
+      return handleResponse<ProcedureDto>(res)
+    },
+    update: async (id: number, dto: UpdateProcedureDto): Promise<ProcedureDto> => {
+      const res = await fetch(`${BASE_URL}/api/procedures/${id}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(dto),
+      })
+      return handleResponse<ProcedureDto>(res)
+    },
+    delete: async (id: number): Promise<{ message: string }> => {
+      const res = await fetch(`${BASE_URL}/api/procedures/${id}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      })
+      return handleResponse<{ message: string }>(res)
+    },
+  },
+
+  // Reports
+  reports: {
+    getCosts: async (filter: CostReportFilterDto): Promise<CostReportDto> => {
+      const params = new URLSearchParams()
+      if (filter.patientId) params.append('patientId', filter.patientId.toString())
+      if (filter.doctorId) params.append('doctorId', filter.doctorId)
+      if (filter.dateFrom) params.append('dateFrom', filter.dateFrom)
+      if (filter.dateTo) params.append('dateTo', filter.dateTo)
+      
+      const res = await fetch(`${BASE_URL}/api/reports/costs?${params.toString()}`, {
+        headers: getHeaders(),
+      })
+      return handleResponse<CostReportDto>(res)
+    },
+    getCostsPdfBlobUrl: async (filter: CostReportFilterDto): Promise<string> => {
+      const params = new URLSearchParams()
+      if (filter.patientId) params.append('patientId', filter.patientId.toString())
+      if (filter.doctorId) params.append('doctorId', filter.doctorId)
+      if (filter.dateFrom) params.append('dateFrom', filter.dateFrom)
+      if (filter.dateTo) params.append('dateTo', filter.dateTo)
+      
+      const res = await fetch(`${BASE_URL}/api/reports/costs/pdf?${params.toString()}`, {
+        headers: getHeaders(),
+      })
+      if (!res.ok) throw new Error('Błąd pobierania PDF raportu kosztów')
+      const blob = await res.blob()
+      return URL.createObjectURL(blob)
     },
   },
 

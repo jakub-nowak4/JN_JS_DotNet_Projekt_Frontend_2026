@@ -4,12 +4,13 @@ import { useAuth } from '../context/AuthContext.tsx'
 import { Sidebar } from '../components/Sidebar.tsx'
 import { Header } from '../components/Header.tsx'
 
-// Panel Imports
 import { AdminPanel } from './AdminPanel.tsx'
 import { PatientList } from './PatientList.tsx'
 import { ReceptionPanel } from './ReceptionPanel.tsx'
 import { DoctorPanel } from './DoctorPanel.tsx'
 import { MedicationsCatalog } from './MedicationsCatalog.tsx'
+import { ProceduresCatalog } from './ProceduresCatalog.tsx' 
+import { ReportsPanel } from './ReportsPanel.tsx'
 
 export default function Dashboard() {
   const { user, loading } = useAuth()
@@ -45,6 +46,8 @@ export default function Dashboard() {
       case 'patients': return 'Kartoteka pacjentów'
       case 'schedule': return user?.role === 'Lekarz' ? 'Mój plan przyjęć pacjentów' : 'Harmonogram wizyt lekarskich'
       case 'medications': return 'Katalog leków i preparatów medycznych'
+      case 'procedures': return 'Słownik procedur medycznych'
+      case 'reports': return 'Raporty finansowe przychodni'
       default: return 'Panel medyczny'
     }
   }
@@ -59,6 +62,10 @@ export default function Dashboard() {
         return user?.role === 'Lekarz' ? <DoctorPanel /> : <ReceptionPanel />
       case 'medications':
         return <MedicationsCatalog />
+      case 'procedures':
+        return <ProceduresCatalog />
+      case 'reports':
+        return <ReportsPanel />
       default:
         return null
     }
