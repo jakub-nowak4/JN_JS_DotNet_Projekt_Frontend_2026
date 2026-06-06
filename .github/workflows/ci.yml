@@ -42,7 +42,7 @@ jobs:
         host: ${{ secrets.SERVER_HOST }}
         username: ${{ secrets.SERVER_USER }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
-        port: ${{ secrets.SERVER_PORT || 22 }}
+        port: 22
         script: |
           cd /home/debian/Projekt/JN_JS_DotNet_Projekt_Frontend_2026
           git pull origin main
