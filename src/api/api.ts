@@ -112,6 +112,18 @@ export type MedicationListDto = {
   description: string | null
 }
 
+export type CreateMedicationDto = {
+  name: string
+  unitPrice: number
+  description?: string | null
+}
+
+export type UpdateMedicationDto = {
+  name: string
+  unitPrice: number
+  description?: string | null
+}
+
 export type VisitStatus = 'Planned' | 'InProgress' | 'Completed' | 'Cancelled'
 export const VISIT_STATUS_LABELS: Record<VisitStatus, string> = {
   Planned: 'Zaplanowana',
@@ -738,6 +750,29 @@ export const api = {
         headers: getHeaders(),
       })
       return handleResponse<MedicationListDto[]>(res)
+    },
+    create: async (dto: CreateMedicationDto): Promise<MedicationListDto> => {
+      const res = await fetch(`${BASE_URL}/api/Medications`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(dto),
+      })
+      return handleResponse<MedicationListDto>(res)
+    },
+    update: async (id: number, dto: UpdateMedicationDto): Promise<MedicationListDto> => {
+      const res = await fetch(`${BASE_URL}/api/Medications/${id}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(dto),
+      })
+      return handleResponse<MedicationListDto>(res)
+    },
+    delete: async (id: number): Promise<void> => {
+      const res = await fetch(`${BASE_URL}/api/Medications/${id}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      })
+      return handleResponse<void>(res)
     },
   },
 }
